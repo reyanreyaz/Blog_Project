@@ -6,20 +6,18 @@ const axiosInstance = axios.create({
   withCredentials: true,
 });
 
+let refreshTokenPromise = null;
+
 axiosInstance.interceptors.request.use(
   async (config) => {
     const { store } = await import("../../app/store.js");
-    const state = store.getState();
-    const accessToken = state.auth?.token;
+    const accessToken = store.getState().auth?.token;
     if (accessToken) {
-      console.log("at sent with every req: "+accessToken)
       config.headers.Authorization = `Bearer ${accessToken}`;
     }
     return config;
   },
-  (error) => {
-    return Promise.reject(error);
-  }
+  (error) => Promise.reject(error)
 );
 
 axiosInstance.interceptors.response.use(
@@ -30,22 +28,32 @@ axiosInstance.interceptors.response.use(
     if (error.response?.status === 403 && !originalRequest._retry) {
       originalRequest._retry = true;
 
-      try {
-        const { data } = await axiosInstance.get(
-          "/refresh",
-          { withCredentials: true }
-        );
-
-        const { store } = await import("../../app/store.js");
-
-        store.dispatch(setCredentials({ userId: data.userId, accessToken: data.accessToken }));
-        originalRequest.headers["Authorization"] = `Bearer ${data.accessToken}`;
-        return axiosInstance(originalRequest);
-      } catch (err) {
-        const { store } = await import("../../app/store.js");
-        store.dispatch(logOut());
-        return Promise.reject(err);
+      if (!refreshTokenPromise) {
+        refreshTokenPromise = axiosInstance
+          .get("/refresh")
+          .then(async (response) => {
+            const { store } = await import("../../app/store.js");
+            store.dispatch(
+              setCredentials({
+                userId: response.data.userId,
+                accessToken: response.data.accessToken,
+              })
+            );
+            return response.data.accessToken;
+          })
+          .catch(async (err) => {
+            const { store } = await import("../../app/store.js");
+            store.dispatch(logOut());
+            return Promise.reject(err);
+          })
+          .finally(() => {
+            refreshTokenPromise = null;
+          });
       }
+
+      const newToken = await refreshTokenPromise;
+      originalRequest.headers["Authorization"] = `Bearer ${newToken}`;
+      return axiosInstance(originalRequest);
     }
 
     return Promise.reject(error);

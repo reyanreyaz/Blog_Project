@@ -88,7 +88,13 @@ const SingleBlogpost = () => {
           </div>
           <PostAuthor key={post._id} userId={post.author} />
         </footer>
-        {openComments && <AddComment postId={post._id} />}
+        <div
+          className={`flex overflow-hidden transition-all ease-in-out ${
+            openComments ? "max-h-14" : "max-h-0"
+          }`}
+        >
+          <AddComment postId={post._id} />
+        </div>
         <h2 className="text-center text-lg font-medium mt-3">Comments</h2>
         <Comment post={post} />
       </article>
