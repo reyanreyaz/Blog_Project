@@ -4,7 +4,6 @@ const handleNewComment = async (req, res) => {
   try {
     const { postId } = req.params;
     const { user, content } = req.body;
-    console.log("postId: "+ postId)
 
     if (!user || !content) {
       return res.status(400).json({ error: "User ID and content are required." });
